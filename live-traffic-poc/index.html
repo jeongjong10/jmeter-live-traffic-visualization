@@ -1,0 +1,8 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>JMeter Traffic PoC</title><link rel="stylesheet" href="/style.css"></head><body>
+<main><header><div><p class="eyebrow">LOCAL · LOOPBACK ONLY</p><h1>JMeter Traffic Flow</h1></div><div id="status">● 연결 중</div></header>
+<section class="notice">흐름의 입자는 <b>시각화용 샘플</b>이며 실제 요청 수 또는 정확한 비율을 뜻하지 않습니다.</section>
+<section class="stats"><article><small>기록 이벤트</small><strong id="total">0</strong></article><article><small>60초 RPS</small><strong id="rps">0.00</strong></article><article><small>평균 응답</small><strong id="latency">0 ms</strong></article><article><small>오류율</small><strong id="errors">0.0%</strong></article></section>
+<section class="panel"><div class="panelhead"><h2>실시간 요청 흐름</h2><span>최근 60초</span></div><canvas id="flow" width="1000" height="250"></canvas></section>
+<section class="panel"><div class="panelhead"><h2>엔드포인트</h2><span id="mode">LIVE</span></div><div id="endpoints"></div></section>
+<section class="panel replay"><div><h2>기록 재생</h2><p id="replayInfo">기록을 불러오는 중…</p></div><button id="play">▶ 재생</button><button id="restart">↺ 처음부터</button><label>속도 <select id="speed"><option value="1">1×</option><option value="2">2×</option><option value="5">5×</option><option value="10">10×</option></select></label></section>
+</main><script src="/app.js"></script></body></html>

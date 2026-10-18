@@ -1,0 +1,43 @@
+# Operating-system and editor metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ChatGPT project sync references; they are read-only local material, not a
+# distributable part of this repository.
+sources/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Java/Maven build products
+**/target/
+*.class
+
+# Node/Vite build products
+**/node_modules/
+**/dist/
+**/.vite/
+*.tsbuildinfo
+
+# JMeter execution output and logs
+*.jtl
+*.log
+jmeter.log
+**/*.pid
+
+# Local collector recordings and temporary generated flow settings
+live-traffic-poc/data/
+mock-api-flow/.load-settings.*
+
+# Test and coverage caches
+.pytest_cache/
+coverage/
+.coverage

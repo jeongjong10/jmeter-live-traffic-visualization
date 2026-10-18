@@ -1,0 +1,20 @@
+{
+  "journeyId": "checkout",
+  "journeyName": "7-step commerce checkout",
+  "virtualUsers": 12,
+  "rampUpSeconds": 2,
+  "loops": 2,
+  "durationSeconds": null,
+  "plannedJourneys": 24,
+  "failureRule": "product-detail returns HTTP 503 when (thread + round) % 7 == 0; downstream steps are skipped and never requested",
+  "slowRule": "search adds 1200 ms and payment adds 450 ms when (thread + round) % 3 == 0 and the journey is not failed",
+  "steps": [
+    {"id": "auth", "order": 1, "label": "인증", "method": "POST", "path": "/auth/login"},
+    {"id": "session", "order": 2, "label": "세션/프로필", "method": "GET", "path": "/profile/session"},
+    {"id": "search", "order": 3, "label": "상품 검색", "method": "GET", "path": "/catalog/search"},
+    {"id": "product-detail", "order": 4, "label": "상품 상세", "method": "GET", "path": "/catalog/products/sku-espresso"},
+    {"id": "cart", "order": 5, "label": "장바구니", "method": "POST", "path": "/cart/items"},
+    {"id": "payment", "order": 6, "label": "결제 승인", "method": "POST", "path": "/payments/authorize"},
+    {"id": "order-confirmation", "order": 7, "label": "주문 확정", "method": "POST", "path": "/orders/confirm"}
+  ]
+}
