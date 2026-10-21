@@ -3,6 +3,26 @@
 @tailwind utilities;
 
 @layer base {
+  /* Chart ink and series tokens (validated with the dataviz palette checker
+   * against each theme's card surface: dark #0f172a, light #f1f5f9). */
+  :root {
+    --ink-primary: #f0efec; --ink-secondary: #c3c2b7; --ink-muted: #898781;
+    --chart-grid: #1e293b; --chart-axis: #334155; --chart-surface: #0f172a;
+    --series-1: #3987e5; --series-2: #d95926; --critical: #d03b3b;
+  }
+  :root[data-theme="light"] {
+    --ink-primary: #0b0b0b; --ink-secondary: #52514e; --ink-muted: #6b6a66;
+    --chart-grid: #e2e8f0; --chart-axis: #cbd5e1; --chart-surface: #f1f5f9;
+    --series-1: #2a78d6; --series-2: #eb6834; --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme]) {
+      --ink-primary: #0b0b0b; --ink-secondary: #52514e; --ink-muted: #6b6a66;
+      --chart-grid: #e2e8f0; --chart-axis: #cbd5e1; --chart-surface: #f1f5f9;
+      --series-1: #2a78d6; --series-2: #eb6834; --critical: #d03b3b;
+    }
+  }
+
   body {
     @apply bg-surface-900 text-gray-100 antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;

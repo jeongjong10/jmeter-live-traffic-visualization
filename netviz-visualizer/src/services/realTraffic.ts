@@ -132,9 +132,11 @@ export function startCapture(callback: RequestCallback, status?: ConnectionCallb
   stream = new EventSource(`${COLLECTOR}/stream`);
   stream.onopen = () => onConnection?.(true);
   stream.onerror = () => onConnection?.(false);
-  stream.addEventListener('traffic', (message) => {
-    try { deliver(JSON.parse((message as MessageEvent<string>).data) as CollectorEvent); } catch { /* ignore malformed local event */ }
+  // The collector sends batches; a viewer that fell behind is asked to reload the recording.
+  stream.addEventListener('batch', (message) => {
+    try { (JSON.parse((message as MessageEvent<string>).data) as CollectorEvent[]).forEach(deliver); } catch { /* ignore malformed local event */ }
   });
+  stream.addEventListener('resync', () => { void loadRecording().then(requests => requests.forEach(request => onRequest?.(request))).catch(() => undefined); });
 }
 
 export function stopCapture(): void { onRequest = null; }

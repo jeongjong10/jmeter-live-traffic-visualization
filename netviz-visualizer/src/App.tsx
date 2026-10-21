@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNetworkCapture } from './hooks/useNetworkCapture';
 import type { NetworkRequest } from './types/network';
-import TopologyCanvas, { type LoadSettings, type StageDefinition, type StageMetric, type TrafficStage, type TrafficToken } from './components/TopologyCanvas';
+import TopologyCanvas, { canvasHeightFor, type LoadSettings, type StageDefinition, type StageMetric, type TrafficStage, type TrafficToken } from './components/TopologyCanvas';
 import RequestList from './components/RequestList';
 import RequestInspector from './components/RequestInspector';
 import ControlBar from './components/ControlBar';
+import PlanFlowView, { PlanUpload } from './components/PlanFlowView';
+import { clock, Metric, Tile, TimelineScrubber } from './components/FlowParts';
+import { usePlanFlow } from './hooks/usePlanFlow';
 
 const fallbackStages: StageDefinition[] = [{ id: 'auth', name: '인증', endpoint: 'POST /auth/login' }, { id: 'catalog', name: '상품 조회', endpoint: 'GET /catalog/products' }, { id: 'order', name: '주문', endpoint: 'POST /orders' }];
 const names: Record<string, string> = { auth: '인증', catalog: '상품 조회', order: '주문', profile: '프로필 조회', inventory: '재고 확인', cart: '장바구니', payment: '결제', shipment: '배송 요청', search: '상품 검색', recommendation: '추천 조회', coupon: '쿠폰 검증' };
@@ -16,11 +19,16 @@ const stageOf = (r: NetworkRequest): TrafficStage | null => {
 const started = (r: NetworkRequest) => r.timing.startTime || r.timestamp - r.timing.duration;
 const percentile = (values: number[], q: number) => values.length ? [...values].sort((a, b) => a - b)[Math.min(values.length - 1, Math.ceil(values.length * q) - 1)] : 0;
 const fmt = (n: number) => `${Math.round(n).toLocaleString()} ms`;
-const clock = (ms: number) => `${(Math.max(0, ms) / 1000).toFixed(1)}초`;
 type Scenario = 'all' | 'success' | 'slow' | 'failure';
 type CollectorLoadSettings = { journeyId: string; journeyName: string; virtualUsers: number; rampUpSeconds: number; loops: number; durationSeconds?: number; plannedJourneys: number; failureRule?: string; slowRule?: string; steps: { id: string; order: number; label: string; method: string; path: string }[] };
 
+/** A registered .jmx switches the screen to the listener-only plan view. */
 export default function App() {
+  const flow = usePlanFlow();
+  return flow.plan ? <PlanFlowView flow={flow} /> : <LegacyFlowApp onUpload={flow.uploadPlan} />;
+}
+
+function LegacyFlowApp({ onUpload }: { onUpload: (file: File) => Promise<void> }) {
   const data = useNetworkCapture(); const { requests, stats, isCapturing, isReplaying, recordingCount, selectedRequest } = data;
   const host = useRef<HTMLDivElement>(null); const lastFrame = useRef<number | null>(null);
   const [width, setWidth] = useState(900); const [cursor, setCursor] = useState(0); const [scenario, setScenario] = useState<Scenario>('all'); const [playing, setPlaying] = useState(true); const [replaySpeed, setReplaySpeed] = useState(1); const [runSettings, setRunSettings] = useState<CollectorLoadSettings | null>(null);
@@ -34,11 +42,11 @@ export default function App() {
   useEffect(() => { setCursor(range.min); lastFrame.current = null; }, [range.min, range.max, scenario]);
   useEffect(() => { if (!timeline.length || !playing) return; let frame = 0; const tick = (now: number) => { const previous = lastFrame.current ?? now; lastFrame.current = now; const delta = (now - previous) * replaySpeed; setCursor(current => { const next = current + delta; return next > range.max ? range.min + ((next - range.min) % (range.max - range.min)) : next; }); frame = requestAnimationFrame(tick); }; frame = requestAnimationFrame(tick); return () => { cancelAnimationFrame(frame); lastFrame.current = null; }; }, [timeline.length, playing, replaySpeed, range.min, range.max]);
   const model = useMemo(() => modelAt(timeline, cursor, stages), [timeline, cursor, stages]); const loaded = timeline.length > 0;
-  const canvasHeight = Math.max(360, stages.length * 102 + 54);
+  const canvasHeight = canvasHeightFor(stages.length);
   const onReplayFromStart = () => { setCursor(range.min); setPlaying(true); };
   const onReplay = (speed: number) => { setReplaySpeed(speed); onReplayFromStart(); data.replay(speed); };
   return <main className="min-h-screen bg-slate-950 text-slate-100">
-    <header className="border-b border-slate-700/70 bg-slate-900/95 px-4 py-3 lg:px-8"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold tracking-[.18em] text-blue-300">JMETER CONCURRENT TRAFFIC</p><h1 className="mt-.5 text-lg font-bold">동시 사용자 API 흐름</h1><p className="text-xs text-slate-400">{runSettings ? `${runSettings.journeyName} · ${runSettings.steps.length}개 API` : '하나의 JMeter 부하 발생기에서 나온 요청이 각 API와 왕복한 뒤 다음 단계로 진행됩니다.'}</p></div><ControlBar isCapturing={isCapturing} isReplaying={isReplaying} isTimelinePlaying={playing} recordingCount={recordingCount} replaySpeed={replaySpeed} onToggleCapture={() => data.setIsCapturing(v => !v)} onClear={data.clearRequests} onReplay={onReplay} onReplayFromStart={onReplayFromStart} onReplaySpeedChange={setReplaySpeed} onTimelinePlayToggle={() => setPlaying(v => !v)} /></div></header>
+    <header className="border-b border-slate-700/70 bg-slate-900/95 px-4 py-3 lg:px-8"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold tracking-[.18em] text-blue-300">JMETER CONCURRENT TRAFFIC</p><h1 className="mt-.5 text-lg font-bold">동시 사용자 API 흐름</h1><p className="text-xs text-slate-400">{runSettings ? `${runSettings.journeyName} · ${runSettings.steps.length}개 API` : '하나의 JMeter 부하 발생기에서 나온 요청이 각 API와 왕복한 뒤 다음 단계로 진행됩니다.'}</p></div><PlanUpload onUpload={onUpload} /><ControlBar isCapturing={isCapturing} isReplaying={isReplaying} isTimelinePlaying={playing} recordingCount={recordingCount} replaySpeed={replaySpeed} onToggleCapture={() => data.setIsCapturing(v => !v)} onClear={data.clearRequests} onReplay={onReplay} onReplayFromStart={onReplayFromStart} onReplaySpeedChange={setReplaySpeed} onTimelinePlayToggle={() => setPlaying(v => !v)} /></div></header>
     <section className="mx-auto grid max-w-7xl grid-cols-2 gap-3 px-4 py-4 sm:grid-cols-4 lg:px-8"><Tile label="수집 상태" value={isReplaying ? '기록 재생' : isCapturing ? '실시간 연결' : '일시정지'} /><Tile label="표시 요청" value={`${scoped.length}건`} /><Tile label="전체 오류" value={`${stats.errorCount}건`} red={!!stats.errorCount} /><Tile label="전체 평균" value={fmt(stats.avgResponseTime)} warn={stats.avgResponseTime >= 500} /></section>
     <section className="mx-auto max-w-7xl px-4 pb-3 lg:px-8"><div className="rounded-2xl border border-blue-400/30 bg-blue-500/5 p-4"><p className="font-semibold text-blue-100">이 화면을 읽는 법</p><p className="mt-1 text-sm text-slate-300">왼쪽은 사용자 점이 아니라 <b>JMeter 테스트 설정</b>입니다. 실선은 부하 발생기에서 API로 가는 요청, 점선은 API에서 돌아오는 응답입니다. 응답이 돌아와야 같은 여정의 다음 API 요청이 출발합니다. 주황 테두리와 오래 머무는 점은 실측 지연·처리 중 요청입니다.</p></div></section>
     <section className="mx-auto max-w-7xl px-4 pb-3 lg:px-8"><div className="flex flex-wrap items-center gap-2"><span className="mr-1 text-xs text-slate-400">시나리오</span>{([['all','전체'],['success','정상'],['slow','지연'],['failure','오류']] as const).map(([id,label]) => <button key={id} onClick={() => setScenario(id)} className={`rounded-full border px-3 py-1.5 text-xs ${scenario === id ? 'border-blue-300 bg-blue-500/20 text-white' : 'border-slate-700 text-slate-300'}`}>{label}</button>)}<span className="ml-auto text-xs text-slate-500">실제 수집 이벤트 · 최대 80개 토큰만 그리며, 지표는 전체 이벤트를 계산합니다.</span></div></section>
@@ -48,10 +56,6 @@ export default function App() {
   </main>;
 }
 
-function TimelineScrubber({ min, max, value, playing, speed, onChange, onPlayToggle }: { min: number; max: number; value: number; playing: boolean; speed: number; onChange: (value: number) => void; onPlayToggle: () => void }) {
-  const duration = Math.max(1, max - min); const percent = Math.min(100, Math.max(0, (value - min) / duration * 100));
-  return <div className="rounded-xl border border-slate-700 bg-slate-950/70 p-3"><div className="mb-2 flex items-center justify-between text-xs"><span className="font-semibold text-slate-200">전체 기록 타임라인</span><span className="text-slate-400">{clock(value - min)} / {clock(duration)} · {speed}×</span></div><div className="flex items-center gap-3"><button onClick={onPlayToggle} className="min-w-9 rounded bg-slate-700 px-2 py-1 text-sm hover:bg-slate-600" aria-label={playing ? '일시정지' : '재생'}>{playing ? 'Ⅱ' : '▶'}</button><input aria-label="기록 재생 위치" type="range" min={min} max={max} step={10} value={value} onChange={event => onChange(Number(event.target.value))} className="h-2 w-full cursor-pointer accent-blue-500" style={{ background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${percent}%, #334155 ${percent}%, #334155 100%)` }} /><span className="w-10 text-right text-xs text-slate-400">{Math.round(percent)}%</span></div><p className="mt-2 text-[11px] text-slate-500">막대를 클릭하거나 드래그하면 해당 시점의 API 처리 상태와 왕복 토큰을 즉시 다시 계산합니다.</p></div>;
-}
 
 type VisualStep = { r: NetworkRequest; stage: TrafficStage; runId: string; userIndex: number; requestStart: number; processingStart: number; processingEnd: number; responseEnd: number };
 const FLIGHT_MS = 170;
@@ -70,6 +74,4 @@ function buildVisualTimeline(requests: NetworkRequest[]): VisualStep[] {
 function modelAt(timeline: VisualStep[], cursor: number, stages: StageDefinition[]): { tokens: TrafficToken[]; metrics: StageMetric[] } {
   const completed = timeline.filter(step => step.responseEnd <= cursor); const metrics = stages.map(({ id: stage }) => { const all = timeline.filter(step => step.stage === stage && step.requestStart <= cursor); const done = completed.filter(step => step.stage === stage); const recent = done.filter(step => step.responseEnd >= cursor - 1000); const active = timeline.filter(step => step.stage === stage && step.processingStart <= cursor && cursor < step.processingEnd); const requestFlight = timeline.filter(step => step.stage === stage && step.requestStart <= cursor && cursor < step.processingStart).length; const responseFlight = timeline.filter(step => step.stage === stage && step.processingEnd <= cursor && cursor < step.responseEnd).length; const durations = done.map(step => step.r.timing.duration); const errors = done.filter(step => step.r.status === 'error').length; return { stage, inbound: all.length, inFlight: active.length, throughput: recent.length, errors, errorRate: done.length ? Math.round(errors / done.length * 100) : 0, averageMs: durations.length ? durations.reduce((sum, value) => sum + value, 0) / durations.length : 0, p95Ms: percentile(durations, .95), requestFlight, responseFlight }; }); const tokens: TrafficToken[] = []; timeline.forEach(step => { const base = { id: step.r.id, stage: step.stage, userIndex: step.userIndex, runId: step.runId }; if (step.requestStart <= cursor && cursor < step.processingStart) tokens.push({ ...base, kind: 'request', progress: (cursor - step.requestStart) / FLIGHT_MS, status: 'pending' }); else if (step.processingStart <= cursor && cursor < step.processingEnd) tokens.push({ ...base, kind: 'processing', progress: 1, status: step.r.status === 'error' ? 'error' : 'pending' }); else if (step.processingEnd <= cursor && cursor < step.responseEnd) tokens.push({ ...base, kind: 'response', progress: (cursor - step.processingEnd) / FLIGHT_MS, status: step.r.status }); }); return { metrics, tokens: tokens.slice(-80) };
 }
-function Tile({ label, value, red, warn }: { label: string; value: string; red?: boolean; warn?: boolean }) { return <div className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3"><p className="text-xs text-slate-400">{label}</p><p className={`mt-1 text-xl font-bold ${red ? 'text-red-300' : warn ? 'text-orange-300' : 'text-blue-200'}`}>{value}</p></div>; }
-function Metric({ label, value, red, warn }: { label: string; value: string; red?: boolean; warn?: boolean }) { return <div><p className="text-[11px] text-slate-500">{label}</p><p className={red ? 'font-semibold text-red-300' : warn ? 'font-semibold text-orange-300' : 'font-semibold text-slate-200'}>{value}</p></div>; }
 function Empty() { return <div className="flex h-[270px] items-center justify-center rounded-xl border border-dashed border-slate-600 text-center"><div><p className="font-semibold">아직 단계가 식별된 JMeter 이벤트가 없습니다.</p><p className="mt-1 text-sm text-slate-400">flow 단계 메타데이터가 들어오면 실제 7단계 흐름으로 표시됩니다.</p></div></div>; }
