@@ -17,5 +17,8 @@ public record SampleEventV1(
         int stepOrder,
         String previousStepId,
         String phase,
-        String outcome) {
+        String outcome,
+        long startTime,
+        String threadName,
+        String failureMessage) {
 }

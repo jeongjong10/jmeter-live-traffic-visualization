@@ -44,9 +44,6 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.13.0</version>
         <configuration>
-          <!-- Keep builds deterministic even when Maven itself runs on another JDK. -->
-          <fork>true</fork>
-          <executable>/opt/homebrew/opt/openjdk@21/bin/javac</executable>
           <release>${maven.compiler.release}</release>
           <proc>none</proc>
         </configuration>

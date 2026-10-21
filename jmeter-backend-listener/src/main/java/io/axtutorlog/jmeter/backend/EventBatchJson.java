@@ -30,12 +30,20 @@ final class EventBatchJson {
                     .append(",\"previousStepId\":\"").append(escape(event.previousStepId())).append("\"")
                     .append(",\"phase\":\"").append(escape(event.phase())).append("\"")
                     .append(",\"outcome\":\"").append(escape(event.outcome())).append("\"")
+                    .append(",\"startTime\":").append(event.startTime())
+                    .append(",\"threadName\":\"").append(escape(event.threadName())).append("\"")
+                    .append(",\"failureMessage\":\"").append(escape(event.failureMessage())).append("\"")
                     .append('}');
         }
         return json.append(']').toString();
     }
 
-    private static String escape(String value) {
+    /** Test lifecycle marker; the collector uses it to reset and to close open estimates. */
+    static String testLifecycle(String phase, long timestamp) {
+        return "[{\"eventType\":\"test\",\"phase\":\"" + escape(phase) + "\",\"timestamp\":" + timestamp + "}]";
+    }
+
+    static String escape(String value) {
         if (value == null) {
             return "";
         }

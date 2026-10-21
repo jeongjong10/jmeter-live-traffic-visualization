@@ -65,6 +65,8 @@ public final class EventCollectorBackendListener implements BackendListenerClien
         nextFlushAtMillis = System.currentTimeMillis() + configuration.flushIntervalMillis();
         LOG.info("event-collector listener initialized (collectorUrl={}, batchSize={}, flushIntervalMillis={})",
                 configuration.collectorUrl(), configuration.batchSize(), configuration.flushIntervalMillis());
+        sendTestTree();
+        sendLifecycle("started");
     }
 
     @Override
@@ -72,7 +74,15 @@ public final class EventCollectorBackendListener implements BackendListenerClien
             List<SampleResult> sampleResults, BackendListenerContext context) {
         ensureConfigured();
         for (SampleResult result : sampleResults) {
-            pendingEvents.add(SampleEventNormalizer.normalize(result));
+            try {
+                pendingEvents.add(SampleEventNormalizer.normalize(result));
+            } catch (RuntimeException exception) {
+                // An exception here would end JMeter's listener worker thread and silently
+                // lose every later sample, so skip only this one.
+                droppedEventCount++;
+                LOG.warn("event-collector sample skipped (label={}, failure={})", result.getSampleLabel(), exception.toString());
+                continue;
+            }
             normalizedCount++;
             if (pendingEvents.size() >= configuration.batchSize()) {
                 flush("batch-size");
@@ -87,6 +97,7 @@ public final class EventCollectorBackendListener implements BackendListenerClien
     public synchronized void teardownTest(BackendListenerContext context) {
         if (configuration != null) {
             flush("teardown");
+            sendLifecycle("ended");
         }
     }
 
@@ -131,6 +142,46 @@ public final class EventCollectorBackendListener implements BackendListenerClien
             recordFailedBatch(reason, batch.size(), "request interrupted");
         } catch (Exception exception) {
             recordFailedBatch(reason, batch.size(), exception.getClass().getSimpleName() + ": " + exception.getMessage());
+        }
+    }
+
+    /** The plan JMeter is running (unsaved GUI edits included), best-effort like lifecycle markers. */
+    private void sendTestTree() {
+        String tree = TestTreeCapture.capture();
+        if (tree == null) {
+            LOG.warn("event-collector test tree not captured; the collector keeps its registered plan");
+            return;
+        }
+        HttpRequest request = HttpRequest.newBuilder(configuration.collectorUrl().resolve("/api/test-tree"))
+                .header("Content-Type", "application/json")
+                .timeout(Duration.ofMillis(configuration.requestTimeoutMillis()))
+                .POST(HttpRequest.BodyPublishers.ofString(tree))
+                .build();
+        try {
+            httpClient.send(request, HttpResponse.BodyHandlers.discarding());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            LOG.warn("event-collector test tree not delivered (request interrupted)");
+        } catch (Exception exception) {
+            LOG.warn("event-collector test tree not delivered ({})", exception.getMessage());
+        }
+    }
+
+    /** Lifecycle markers are best-effort and are not counted as sample batches. */
+    private void sendLifecycle(String phase) {
+        HttpRequest request = HttpRequest.newBuilder(configuration.collectorUrl())
+                .header("Content-Type", "application/json")
+                .timeout(Duration.ofMillis(configuration.requestTimeoutMillis()))
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        EventBatchJson.testLifecycle(phase, System.currentTimeMillis())))
+                .build();
+        try {
+            httpClient.send(request, HttpResponse.BodyHandlers.discarding());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            LOG.warn("event-collector test {} marker not delivered (request interrupted)", phase);
+        } catch (Exception exception) {
+            LOG.warn("event-collector test {} marker not delivered ({})", phase, exception.getMessage());
         }
     }
 
