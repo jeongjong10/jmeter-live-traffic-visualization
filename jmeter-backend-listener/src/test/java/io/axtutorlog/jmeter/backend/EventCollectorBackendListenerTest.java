@@ -18,11 +18,14 @@ class EventCollectorBackendListenerTest {
         AtomicReference<String> method = new AtomicReference<>();
         AtomicReference<String> contentType = new AtomicReference<>();
         AtomicReference<String> body = new AtomicReference<>();
+        List<String> bodies = new java.util.concurrent.CopyOnWriteArrayList<>();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/events", exchange -> {
             method.set(exchange.getRequestMethod());
             contentType.set(exchange.getRequestHeaders().getFirst("Content-Type"));
-            body.set(new String(exchange.getRequestBody().readAllBytes()));
+            String received = new String(exchange.getRequestBody().readAllBytes());
+            bodies.add(received);
+            if (received.contains("\"label\"")) body.set(received);
             exchange.sendResponseHeaders(202, -1);
             exchange.close();
         });
@@ -37,15 +40,19 @@ class EventCollectorBackendListenerTest {
         listener.setupTest(context);
 
         listener.handleSampleResults(List.of(sample("one"), sample("two")), context);
+        listener.teardownTest(context);
 
         EventCollectorBackendListener.ListenerMetrics metrics = listener.metrics();
         assertEquals(2, metrics.normalized());
         assertEquals(1, metrics.successfulBatches());
         assertEquals(0, metrics.failedBatches());
         assertEquals(0, metrics.pending());
+        assertEquals(3, bodies.size());
+        assertTrue(bodies.get(0).startsWith("[{\"eventType\":\"test\",\"phase\":\"started\""));
+        assertTrue(bodies.get(2).startsWith("[{\"eventType\":\"test\",\"phase\":\"ended\""));
         assertEquals("POST", method.get());
         assertTrue(contentType.get().startsWith("application/json"));
-        assertEquals("[{\"timestamp\":1000,\"label\":\"one\",\"elapsed\":1,\"success\":false,\"responseCode\":\"\",\"latency\":0,\"connect\":0,\"bytes\":0,\"flowId\":\"\",\"correlationId\":\"\",\"journeyId\":\"\",\"stepId\":\"\",\"stepOrder\":0,\"previousStepId\":\"\",\"phase\":\"aborted\",\"outcome\":\"failure\"},{\"timestamp\":1000,\"label\":\"two\",\"elapsed\":1,\"success\":false,\"responseCode\":\"\",\"latency\":0,\"connect\":0,\"bytes\":0,\"flowId\":\"\",\"correlationId\":\"\",\"journeyId\":\"\",\"stepId\":\"\",\"stepOrder\":0,\"previousStepId\":\"\",\"phase\":\"aborted\",\"outcome\":\"failure\"}]", body.get());
+        assertEquals("[{\"timestamp\":1000,\"label\":\"one\",\"elapsed\":1,\"success\":false,\"responseCode\":\"\",\"latency\":0,\"connect\":0,\"bytes\":0,\"flowId\":\"\",\"correlationId\":\"\",\"journeyId\":\"\",\"stepId\":\"\",\"stepOrder\":0,\"previousStepId\":\"\",\"phase\":\"aborted\",\"outcome\":\"failure\",\"startTime\":999,\"threadName\":\"\",\"failureMessage\":\"\"},{\"timestamp\":1000,\"label\":\"two\",\"elapsed\":1,\"success\":false,\"responseCode\":\"\",\"latency\":0,\"connect\":0,\"bytes\":0,\"flowId\":\"\",\"correlationId\":\"\",\"journeyId\":\"\",\"stepId\":\"\",\"stepOrder\":0,\"previousStepId\":\"\",\"phase\":\"aborted\",\"outcome\":\"failure\",\"startTime\":999,\"threadName\":\"\",\"failureMessage\":\"\"}]", body.get());
         } finally {
             server.stop(0);
         }
