@@ -1,30 +1,30 @@
 # Live Traffic PoC
 
-Python standard-library-only loopback collector and browser dashboard.
+Python 표준 라이브러리만 사용하는 loopback collector 및 브라우저 대시보드입니다.
 
 ```sh
 cd live-traffic-poc
 python3 server.py
-# Open http://127.0.0.1:8765
+# http://127.0.0.1:8765 열기
 ```
 
-Send one contract-shaped event:
+계약 형식의 이벤트 하나 보내기:
 
 ```sh
 curl -X POST http://127.0.0.1:8765/events -H 'content-type: application/json' \
   -d '{"timestamp":"2026-10-18T10:00:00Z","endpoint":"GET /catalog","durationMs":124,"success":true,"status":200}'
 ```
 
-Events remain in memory and append to `data/events.ndjson`. The server binds only to `127.0.0.1`; it makes no external requests. `GET /stream` is SSE, `GET /api/snapshot` is the current 60-second window, and `GET /api/recording` exposes the durable local recording for dashboard replay.
+이벤트는 메모리에 유지되며 `data/events.ndjson`에 추가 기록됩니다. 서버는 `127.0.0.1`에만 바인딩하고 외부 요청을 보내지 않습니다. `GET /stream`은 SSE, `GET /api/snapshot`은 최근 60초 구간, `GET /api/recording`은 대시보드 재생용 로컬 영구 기록을 제공합니다.
 
-For a flow renderer, consume `snapshot.nodeStates` rather than trying to infer
-node queues from endpoint totals. Each node has `arrivals`, `inFlight`,
+흐름 렌더러는 엔드포인트 합계로 노드 대기열을 추론하려 하지 말고
+`snapshot.nodeStates`를 사용하세요. 각 노드는 `arrivals`, `inFlight`,
 `completions`, `success`, `error`, `skipped`, `avgMs`, `p95Ms`,
-`throughputPerSec`, and a short lifecycle `timeline`. A `journey` event on SSE
-uses `phase: started` to place a virtual-user token at a node, then
-`completed`/`aborted`/`skipped` to move, stop, or gray it out.
+`throughputPerSec`, 짧은 수명주기 `timeline`을 가집니다. SSE의 `journey`
+이벤트는 `phase: started`로 가상 사용자 토큰을 노드에 배치하고,
+`completed`/`aborted`/`skipped`로 토큰을 이동, 정지, 회색 처리합니다.
 
-For a fresh demonstration recording, `POST /api/reset` clears only this local
-PoC collector's in-memory and NDJSON events.
+새 시연 기록이 필요하면 `POST /api/reset`으로 이 로컬 PoC collector의
+메모리 및 NDJSON 이벤트만 초기화합니다.
 
-Limit: the in-process event list grows for the duration of a run; this is intentionally a small PoC rather than a retention-managed collector.
+한계: 프로세스 내 이벤트 목록은 실행 기간 내내 계속 늘어납니다. 보존 관리 기능을 갖춘 collector가 아니라 의도적으로 작게 만든 PoC입니다.

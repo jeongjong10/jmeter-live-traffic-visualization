@@ -1,7 +1,7 @@
-# NetViz attribution
+# NetViz 출처 표기
 
-This directory is an integration-derived work based on [hoodini/netviz](https://github.com/hoodini/netviz), commit `9b084414a06303a4837536ffb60cde5621107cfb` (retrieved 2026-10-18).
+이 디렉터리는 [hoodini/netviz](https://github.com/hoodini/netviz)의 커밋 `9b084414a06303a4837536ffb60cde5621107cfb`(2026-10-18 가져옴)를 기반으로 통합 과정에서 파생된 저작물입니다.
 
-The original repository's React, TypeScript, Vite, Tailwind, Canvas topology, request list, inspector, waterfall, and statistics UI structure are retained and adapted here to consume local JMeter collector events. The upstream repository did not contain a `LICENSE` file and GitHub's license endpoint returned no declared repository license when this integration was made. No license is asserted for the upstream work by this project; keep this attribution with derived files and obtain the upstream author's permission before redistribution beyond this local PoC.
+원본 저장소의 React, TypeScript, Vite, Tailwind, Canvas 토폴로지, 요청 목록, 인스펙터, 워터폴, 통계 UI 구조를 유지하면서 로컬 JMeter collector 이벤트를 소비하도록 수정했습니다. 이 통합 시점에 업스트림 저장소에는 `LICENSE` 파일이 없었고, GitHub 라이선스 엔드포인트도 선언된 저장소 라이선스를 반환하지 않았습니다. 이 프로젝트는 업스트림 저작물에 대해 어떤 라이선스도 주장하지 않습니다. 파생 파일에는 이 출처 표기를 함께 유지하고, 이 로컬 PoC를 넘어 재배포하려면 업스트림 저작자의 허락을 먼저 받으세요.
 
-Project-specific additions replace upstream browser interception and public demo traffic with a loopback-only collector adapter and recording replay.
+프로젝트 고유의 추가 사항은 업스트림의 브라우저 가로채기와 공개 데모 트래픽을 loopback 전용 collector 어댑터와 기록 재생으로 대체합니다.

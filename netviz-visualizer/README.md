@@ -1,43 +1,43 @@
-# JMeter NetViz renderer
+# JMeter NetViz 렌더러
 
-This is the visible renderer for the JMeter visualization PoC. It uses the NetViz React + Canvas topology UI and receives **real local collector events**, not NetViz's mock/public traffic generator.
+JMeter 시각화 PoC의 화면 렌더러입니다. NetViz의 React + Canvas 토폴로지 UI를 사용하며, NetViz의 mock/공개 트래픽 생성기가 아닌 **실제 로컬 collector 이벤트**를 받습니다.
 
-## What it shows
+## 표시 내용
 
-- **concurrent business traffic first**: one `JMeter 부하 발생기` node sits on the left. It shows the actual traffic factors (`VU`, ramp-up seconds, loops, planned journeys, observed requests) rather than decorative user dots;
-- API stages are a vertical lane on the right. The renderer reads `GET /api/snapshot.loadSettings.steps`, so the configured seven-stage journey (`auth/session/search/product-detail/cart/payment/order-confirmation`) is displayed before and during a run. Longer flows receive more vertical canvas space and a scroll container; nodes never stack behind another node;
-- every visible dot is a sampled, event-backed JMeter request (`correlationId` when supplied; request ID fallback otherwise), never a generated/decorative user;
-- each stage is a visible round trip: the solid upper curve is `사용자 → API` request, API residency uses the measured JMeter duration, and the dashed lower curve is `API → 사용자` response. The next stage can only send after its prior response returns to the same user/run ID;
-- every edge shows request in-flight and completed requests/sec, then response mean delay and error rate. Every API node shows inbound count, processing users, mean latency, p95 latency, and cumulative **error count** (never an incorrectly-labelled `/s` value) for the displayed time;
-- at high volume the renderer caps drawing to 80 real event tokens and says so in the UI. Metrics still use all captured events.
-- the raw request log, inspector, and timing waterfall are folded under **개발자 상세** so they do not obscure the test result;
-- speed choices of **0.125×, 0.25×, 0.5×, 0.75×, 1×, and 2×**. The selected speed applies to both the screen time axis and a durable-recording reload;
-- a primary **처음부터 재생** control that resets the timeline to zero and immediately plays at the selected speed. It is separate from the play/pause toggle and **기록 다시 불러오기** (which refreshes durable collector data);
-- a full-width recording scrubber with elapsed/total time, play/pause, and click/drag seek. Seeking immediately recalculates the API metrics and request/response tokens for that instant;
-- only loopback communication: browser → Vite proxy → `127.0.0.1:8765` collector.
+- **동시 비즈니스 트래픽 우선**: 왼쪽에 `JMeter 부하 발생기` 노드 하나가 있습니다. 장식용 사용자 점 대신 실제 트래픽 요소(`VU`, ramp-up 초, 반복 횟수, 계획 여정, 관측된 요청)를 보여줍니다.
+- API 단계는 오른쪽 세로 레인에 배치됩니다. 렌더러는 `GET /api/snapshot.loadSettings.steps`를 읽으므로, 설정된 7단계 여정(`auth/session/search/product-detail/cart/payment/order-confirmation`)이 실행 전과 실행 중 모두 표시됩니다. 흐름이 길면 캔버스 세로 공간이 늘어나고 스크롤 컨테이너가 생기며, 노드가 다른 노드 뒤에 겹치지 않습니다.
+- 화면의 모든 점은 이벤트에 근거한 샘플링된 JMeter 요청입니다(`correlationId`가 있으면 그것을, 없으면 요청 ID를 사용). 생성되거나 장식용인 사용자는 없습니다.
+- 각 단계는 눈에 보이는 왕복입니다. 위쪽 실선 곡선은 `사용자 → API` 요청, API 체류는 JMeter 측정 시간, 아래쪽 점선 곡선은 `API → 사용자` 응답입니다. 다음 단계는 이전 응답이 같은 사용자/실행 ID로 돌아온 뒤에만 요청을 보낼 수 있습니다.
+- 모든 엣지에는 처리 중 요청 수와 초당 완료 요청 수, 그리고 응답 평균 지연과 오류율이 표시됩니다. 모든 API 노드에는 표시 시점 기준 유입 건수, 처리 중 사용자, 평균 지연, p95 지연, 누적 **오류 건수**(잘못 표기된 `/s` 값이 아님)가 표시됩니다.
+- 대량 트래픽에서는 실제 이벤트 토큰을 최대 80개까지만 그리며, 이를 UI에 표시합니다. 지표는 여전히 수집된 모든 이벤트를 사용합니다.
+- 원시 요청 로그, 인스펙터, 타이밍 워터폴은 테스트 결과를 가리지 않도록 **개발자 상세** 아래에 접혀 있습니다.
+- 재생 속도는 **0.125×, 0.25×, 0.5×, 0.75×, 1×, 2×** 중에서 고를 수 있습니다. 선택한 속도는 화면 시간축과 영구 기록 재로드 모두에 적용됩니다.
+- 기본 **처음부터 재생** 컨트롤은 타임라인을 0으로 되돌리고 선택한 속도로 즉시 재생합니다. 재생/일시정지 토글 및 **기록 다시 불러오기**(collector의 영구 데이터를 새로 고침)와는 별개입니다.
+- 전체 폭 기록 스크러버는 경과/전체 시간, 재생/일시정지, 클릭/드래그 탐색을 제공합니다. 탐색하면 해당 시점의 API 지표와 요청/응답 토큰을 즉시 다시 계산합니다.
+- 통신은 loopback으로만 이루어집니다: 브라우저 → Vite 프록시 → `127.0.0.1:8765` collector.
 
-### Reading the first screen
+### 첫 화면 읽는 법
 
-1. Start at the left `JMeter 부하 발생기`: solid `→ 요청` leaves the configured test load, the dot stays in an API for JMeter's measured duration, and dashed `← 응답` returns before the same journey asks the next API.
-2. Edge labels separate direction and evidence: request-side shows in-flight/throughput; response-side shows average latency and error rate. Red response dots terminate that user's flow.
-3. A crowded, orange-outlined API with a sparse next request curve is the bottleneck. The screen continually sweeps captured timestamps; Replay repeats the recorded arrivals.
+1. 왼쪽 `JMeter 부하 발생기`에서 시작합니다. 실선 `→ 요청`이 설정된 테스트 부하에서 출발하고, 점은 JMeter가 측정한 시간만큼 API에 머물며, 점선 `← 응답`이 돌아온 뒤에야 같은 여정이 다음 API를 요청합니다.
+2. 엣지 라벨은 방향과 근거를 구분합니다. 요청 쪽은 처리 중 건수/처리량을, 응답 쪽은 평균 지연과 오류율을 보여줍니다. 빨간 응답 점은 해당 사용자의 흐름을 종료합니다.
+3. 점이 몰려 있고 주황색 테두리가 있으며 다음 요청 곡선이 듬성한 API가 병목입니다. 화면은 수집된 타임스탬프를 계속 훑으며, 재생은 기록된 도착을 반복합니다.
 
-The short request/response flight interval is a fixed **170 ms visual transit overlay**. It makes an otherwise instantaneous local wire round trip legible; it does not replace or alter the JMeter-measured API residence time, average, or p95. The colored moving dots remain real correlation-backed events; the left load-generator card intentionally contains no per-user dots.
+짧은 요청/응답 이동 구간은 고정된 **170ms 시각적 이동 오버레이**입니다. 로컬에서는 거의 즉시 끝나는 왕복을 눈으로 볼 수 있게 해 줄 뿐, JMeter가 측정한 API 체류 시간, 평균, p95를 대체하거나 바꾸지 않습니다. 움직이는 색 점은 여전히 correlation에 근거한 실제 이벤트이며, 왼쪽 부하 발생기 카드에는 의도적으로 사용자별 점을 두지 않습니다.
 
-## Journey correlation
+## 여정 상관관계
 
-The renderer consumes `correlationId`/`flowId`, `journeyId`, `stepId`, `stepOrder`, `previousStepId`, `phase`, and `outcome` when the collector provides them. It also reads the run definition at `GET /api/snapshot.loadSettings`: `{ journeyId, journeyName, virtualUsers, rampUpSeconds, loops, durationSeconds, plannedJourneys, failureRule, slowRule, steps }`. The mock run writes the same contract through `POST /api/load-settings` before JMeter begins. Old recordings without an ID are grouped by scenario plus a 10-second time window; that fallback is only acceptable for this PoC and can join concurrent executions incorrectly. Backend Listener completion events alone cannot reveal an in-progress request; the v2 fixture emits lifecycle signals for live active-step rendering, while production instrumentation should emit the same fields from the application boundary.
+collector가 제공하면 렌더러는 `correlationId`/`flowId`, `journeyId`, `stepId`, `stepOrder`, `previousStepId`, `phase`, `outcome`을 사용합니다. 실행 정의는 `GET /api/snapshot.loadSettings`에서 읽습니다: `{ journeyId, journeyName, virtualUsers, rampUpSeconds, loops, durationSeconds, plannedJourneys, failureRule, slowRule, steps }`. mock 실행은 JMeter 시작 전에 `POST /api/load-settings`로 같은 계약을 기록합니다. ID가 없는 이전 기록은 시나리오와 10초 시간 구간으로 묶습니다. 이 대체 방식은 이 PoC에서만 허용되며, 동시 실행을 잘못 합칠 수 있습니다. Backend Listener의 완료 이벤트만으로는 진행 중인 요청을 알 수 없습니다. v2 fixture는 실시간 활성 단계 렌더링을 위해 수명주기 신호를 발행하며, 운영 환경 계측에서는 애플리케이션 경계에서 같은 필드를 발행해야 합니다.
 
-## Run
+## 실행
 
-Start the existing collector first (it owns port 8765):
+먼저 기존 collector를 실행합니다(포트 8765 사용).
 
 ```sh
 cd live-traffic-poc
 python3 server.py
 ```
 
-Then start the NetViz renderer:
+그다음 NetViz 렌더러를 실행합니다.
 
 ```sh
 cd netviz-visualizer
@@ -45,19 +45,19 @@ npm install
 npm run dev
 ```
 
-Open [http://127.0.0.1:5174](http://127.0.0.1:5174). Run the existing real-JMeter fixture in another terminal:
+[http://127.0.0.1:5174](http://127.0.0.1:5174)를 엽니다. 다른 터미널에서 기존 실제 JMeter fixture를 실행합니다.
 
 ```sh
 cd jmeter-backend-listener/fixtures
 ./run-e2e.sh
 ```
 
-The incoming fixture samples appear live. Once the run is over, choose a speed, use **기록 다시 불러오기**, or drag the **전체 기록 타임라인** to inspect any instant. The data is read from the collector's `data/events.ndjson` through `GET /api/recording`; nothing leaves the machine.
+들어오는 fixture 샘플이 실시간으로 표시됩니다. 실행이 끝나면 속도를 고르고 **기록 다시 불러오기**를 누르거나, **전체 기록 타임라인**을 드래그해 원하는 시점을 살펴보세요. 데이터는 `GET /api/recording`을 통해 collector의 `data/events.ndjson`에서 읽으며, 어떤 데이터도 머신 밖으로 나가지 않습니다.
 
-## Data adapter
+## 데이터 어댑터
 
-`src/services/realTraffic.ts` maps the collector contract (`timestamp`, `endpoint`, `durationMs`, `success`, `status`, optional `bytes`/timings) into NetViz's `NetworkRequest`. This deliberately replaces the upstream browser interception and public API demo generator.
+`src/services/realTraffic.ts`는 collector 계약(`timestamp`, `endpoint`, `durationMs`, `success`, `status`, 선택적 `bytes`/타이밍)을 NetViz의 `NetworkRequest`로 매핑합니다. 업스트림의 브라우저 가로채기와 공개 API 데모 생성기를 의도적으로 대체합니다.
 
-## Upstream attribution
+## 업스트림 출처 표기
 
-See [ATTRIBUTION.md](ATTRIBUTION.md). The upstream repository did not publish a license file at the integration commit, so this PoC preserves attribution and must not be redistributed as if it carried a declared upstream open-source license.
+[ATTRIBUTION.md](ATTRIBUTION.md)를 참고하세요. 통합 커밋 시점에 업스트림 저장소는 라이선스 파일을 공개하지 않았으므로, 이 PoC는 출처 표기를 유지하며 업스트림 오픈소스 라이선스가 선언된 것처럼 재배포해서는 안 됩니다.
