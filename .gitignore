@@ -39,5 +39,12 @@ mock-api-flow/.load-settings.*
 
 # Test and coverage caches
 .pytest_cache/
+__pycache__/
 coverage/
 .coverage
+
+# AI session handoff files (one-shot, not committed)
+.ai/*-session-handoff.md
+
+# btoc-like run scratch files (normally removed by run.sh)
+mock-api-flow/btoc-like/.btoc-like-*
