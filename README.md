@@ -87,15 +87,43 @@ npm run dev
    | `batchSize` | `100` |
    | `flushIntervalMillis` | `1000` |
 
-이 설정으로 엔드포인트별 완료 건수, 결과 상태, 측정 시간을 얻을 수 있습니다. 사용자별 전체 왕복(요청 → API 체류 → 응답 → 다음 요청)을 렌더링하려면 `correlationId`, `journeyId`, `stepId`, `stepOrder`, `previousStepId`, `phase` 등의 수명주기 필드를 플랜에 계측해야 합니다. 참고용 JSR223 스크립트와 계약은 [mock-api-flow/journey-start.groovy](mock-api-flow/journey-start.groovy), [mock-api-flow/journey-skip-order.groovy](mock-api-flow/journey-skip-order.groovy), [mock-api-flow/CONTRACT.md](mock-api-flow/CONTRACT.md)에 있습니다.
+6. 테스트를 실행하면 리스너가 **JMeter가 실제 실행 중인 테스트 트리**를 collector로 자동 전송합니다(`POST /api/test-tree`). JMeter UI에서 저장하지 않은 변경(비활성화, 스레드 수 변경)도 매 실행마다 자동 반영되므로 별도 등록이 필요 없습니다. 리스너 없이 기록만 재생할 때는 **jmx 등록** 버튼이나 아래 명령으로 직접 등록할 수 있습니다.
+
+   ```sh
+   curl -X POST -H 'Content-Type: application/xml' --data-binary @/path/to/your-plan.jmx http://127.0.0.1:8765/api/plan
+   ```
+
+등록된 테스트 계획은 활성 Thread Group별 단계(Sampler 트리 순서)로 표시됩니다. Sampler 이름 규칙이나 JSR223 스크립트 같은 추가 계측은 필요 없습니다.
+
+- collector가 각 결과의 스레드 이름·라벨·시작 시각으로 사용자 위치를 복원합니다. 같은 라벨이 여러 번 나오면 트리 위치로 구분하고, 루프 안 Sampler는 반복 단계(↻)로 표시합니다.
+- 한 결과가 도착하면 같은 사용자의 다음 단계를 **처리 중(추정, 점선 원)**으로 표시하고, 그 결과가 오면 실측으로 확정합니다.
+- 실시간 모드는 리스너 전송 간격을 감안해 1.5초 늦게 그립니다. 오류 시 동작은 Thread Group의 `on_sample_error` 설정(continue/stoptest 등)을 따릅니다.
+- JMeter 테스트가 시작될 때마다 새 실행 기록을 만들고 **최근 5개**를 보관합니다(`live-traffic-poc/data/runs/`). 화면 상단 **실행 기록**에서 골라 재생합니다. 각 기록은 당시 등록된 jmx 기준으로 그려집니다.
+- 화면 이름은 **JMeter Live Traffic**이고, 주요 정보(상태 카드·타임라인·요청 단위 이동)는 상단에 틀 고정되어 스크롤해도 사라지지 않습니다.
+- 테마는 다크/라이트/시스템 따라가기를 지원합니다(상단 선택). 그래프와 캔버스 색도 테마에 맞게 바뀝니다.
+- 업무 흐름은 두 탭으로 볼 수 있습니다: **단계 연결**(파이프라인)과 **API 왕복**(이전 화면). 사용자 표시는 칩/사람 아이콘으로 전환 가능하고 상태 설명표가 함께 표시됩니다.
+- 대량 실행(30 VU 이상)에 대비해: collector는 이벤트를 묶어(SSE `batch`) 전송하고 밀린 화면에는 `resync`로 전체 재로딩을 지시합니다(이벤트 폐기 없음). 화면은 이벤트를 증분 반영하고 무거운 계산은 초당 4회, 사용자 타임라인은 캔버스로 그립니다.
+- 재생 중 타임라인을 조작하면 그 시점부터 계속 재생되고, 정지 중에 조작하면 재생 버튼을 눌러야 진행됩니다. 실시간 모드는 테스트 종료 시점에서 멈춥니다.
+- 화면은 대시보드형입니다. 위에서부터 KPI(활성 사용자·처리량·p95·오류율), 시간축 그래프 4종(활성 사용자·처리량·응답시간 p50/p95·오류, 클릭하면 그 시점으로 이동, 단계를 선택하면 응답시간은 그 단계만), 오류 요약(단계·응답 코드·실패 사유별), **업무 흐름**(단계가 순서대로 이어지고 사용자 토큰이 단계 사이를 이동), 표 탭 순서입니다.
+- 색은 절제해서 씁니다. 모든 API는 한 가지 색이고, 색은 상태(오류=빨강, 지연=주황, 선택=흰 테두리)에만 쓰입니다.
+- **체류와 부하는 다릅니다.** 노드의 체류 바(회색)는 전체 시간 중 그 단계가 차지한 비중(같은 사용자의 반복 호출 포함)이고, 부하 바(파랑)는 최근 1초 완료 요청과 동시 사용자 수입니다. 같은 사용자가 ↻ 반복 단계를 도는 경우 체류는 커도 부하는 낮게 나옵니다.
+- 실패한 샘플은 Assertion 실패 메시지(없으면 응답 메시지)를 앞 200자까지 수집해 보여 줍니다. 성공 샘플과 응답 본문·헤더는 수집하지 않습니다.
+- 화면 상단 **쓰레드 속성** 표에 Thread Group 설정(사용자 수, Ramp-up, 루프, 동일 사용자, 생성 지연, 생명주기, 지속 시간, 시작 지연, 오류 시 동작)과 그 의미, 이번 실행의 실측값을 함께 보여 줍니다.
+- 재생 속도는 0.05×~4×이고, **◀ 이전 요청 / 다음 요청 ▶** 버튼이나 ←/→ 키로 요청 하나씩 넘겨 볼 수 있습니다. 실시간 모드는 실제 시간으로 흐르며 속도 설정은 재생에만 적용됩니다.
+- 단계 노드·점에 마우스를 올리면 상세가 보이고, 클릭하면 단계 선택·사용자 여정 강조가 됩니다. 아래 탭에서 **집계 보고서**(JMeter Aggregate Report와 같은 항목), **결과 트리**(샘플 목록·상세, 행 클릭 시 그 시점으로 이동), **사용자 타임라인**을 볼 수 있습니다. 요청·응답 본문과 헤더는 개인정보가 포함될 수 있어 수집하지 않습니다.
+- 지원 요소: HTTP Sampler, Loop/If Controller, Flow Control Action. 그 외 요소는 화면에 경고로 표시합니다.
+
+btoc 구조(중복 라벨, CSV 반복 루프, 다중 Thread Group, stoptest)를 재현한 검증용 예제는 [mock-api-flow/btoc-like/run.sh](mock-api-flow/btoc-like/run.sh)입니다(`./run.sh continue` 또는 `./run.sh stoptest`).
+
+jmx를 등록하지 않으면 기존 방식으로 동작합니다. 이 경우 사용자별 왕복을 렌더링하려면 `correlationId`, `journeyId`, `stepId`, `stepOrder`, `previousStepId`, `phase` 등의 수명주기 필드를 플랜에 계측해야 합니다. 참고용 JSR223 스크립트와 계약은 [mock-api-flow/journey-start.groovy](mock-api-flow/journey-start.groovy), [mock-api-flow/journey-skip-order.groovy](mock-api-flow/journey-skip-order.groovy), [mock-api-flow/CONTRACT.md](mock-api-flow/CONTRACT.md)에 있습니다.
 
 collector는 기본적으로 loopback 데이터만 받습니다. 인증, TLS, 입력 제한, 영속성 제어, 적절한 전달/멱등성 설계를 먼저 갖추기 전에는 호스트 밖으로 노출하지 마세요.
 
 ## 저장소 구성
 
 - `jmeter-backend-listener/` — Java 21 JMeter Backend Listener 및 단위 테스트.
-- `live-traffic-poc/` — Python 표준 라이브러리 기반 collector 및 로컬 재생 API.
+- `live-traffic-poc/` — Python 표준 라이브러리 기반 collector, jmx 해석(`jmx_plan.py`), 흐름 복원(`flow_tracker.py`), 단위 테스트(`tests/`).
 - `netviz-visualizer/` — NetViz에서 파생된 React/Vite 렌더러.
-- `mock-api-flow/` — 7단계 mock API, JMeter 플랜, 수명주기 참고 스크립트.
+- `mock-api-flow/` — 7단계 mock API, JMeter 플랜, 수명주기 참고 스크립트, btoc 구조 검증 예제(`btoc-like/`).
 
 생성된 의존성, 빌드 결과물, 로그, JTL 결과, PID 파일, collector 기록은 의도적으로 Git에서 제외합니다. 이들은 재현 가능한 실행 증거이지 소스 산출물이 아닙니다.
