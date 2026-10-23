@@ -125,7 +125,7 @@ collector는 기본적으로 loopback 데이터만 받습니다. 인증, TLS, �
 
 ## 저장소 구성
 
-- `.ai/` — AI 협업 파일(`notion-sync.md`)과 명세 문서(`spec/`: 정의서, 이벤트 계약, 부하 확장 검증 결과, 설계서).
+- `.ai/` — AI 협업 파일(`notion-sync.md`)과 명세 문서(`spec/`: 기획서 사본(`project.md`), 이벤트 계약, 부하 확장 검증 결과, 설계서).
 - `docker/` — Compose 진입점(`docker-compose.yml`), 서비스 정의(`docker-compose-collector.yml`), 이미지(`collector/Dockerfile`), 컨테이너 기동용 환경변수(`.env.*`).
 - `items/` — 런타임 환경변수. `.env.example`을 `.env.dev` 등으로 복사해 사용합니다(Git 제외).
 - `src/listener/` — Java 21 JMeter Backend Listener 및 단위 테스트(Maven).

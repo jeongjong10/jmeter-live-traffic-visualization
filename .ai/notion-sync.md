@@ -4,9 +4,8 @@
 
 | 정보 영역 | 노션 위치 | ID |
 | --- | --- | --- |
-| 기획·결정 기록 | 📡 JMeter 실시간 부하 흐름 시각화 도구 기획서 | `3fb58ad3a0b28102bee4dfd8f0216481` |
+| 기획서 (프로젝트 대표 문서, 현재 확정 상태만 기록) — `.ai/spec/project.md`와 1:1 | 📡 JMeter 실시간 부하 흐름 시각화 도구 기획서 | `3fb58ad3a0b28102bee4dfd8f0216481` |
 | 작업 상태·수용 기준·증거 | JMeter 실행 작업 큐 (기획서 하위 DB) | `collection://acd6e828-9a97-407d-b13b-f73abcd46ae4` |
-| 프로젝트 정의서 사본 | 프로젝트 정의서 (JMeter Live Traffic) (기획서 하위 페이지) — `.ai/spec/project.md`와 1:1 | `40158ad3a0b2812a8227e8eafb360550` |
 
 ## 작업 큐 속성
 
@@ -23,7 +22,7 @@
 | 문서 | 내용 |
 | --- | --- |
 | `README.md` | 실행 방법·범위·한계 |
-| `.ai/spec/project.md` | 프로젝트 정의서 (노션 사본과 1:1 유지) |
+| `.ai/spec/project.md` | 기획서 (노션 기획서와 1:1 유지) |
 | `.ai/spec/event-contract.md` | 이벤트 계약 |
 | `.ai/spec/load-scale-evidence.md` | 부하 확장 검증 결과 |
 | `src/web/ATTRIBUTION.md` | NetViz 출처·라이선스 고지 |

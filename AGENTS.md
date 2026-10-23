@@ -96,7 +96,7 @@
 ```
 jmeter-live-traffic-visualization/
 ├── .ai/                # AI 협업 파일 (notion-sync.md, 세션 인수인계 파일)
-│   └── spec/           # 명세 문서 (이벤트 계약, 검증 결과, 정의서·설계서)
+│   └── spec/           # 명세 문서 (기획서 사본, 이벤트 계약, 검증 결과, 설계서)
 ├── docker/             # Compose 진입점·서비스 정의·Dockerfile, 컨테이너 기동용 .env.* (커밋)
 ├── items/              # 런타임 환경변수 (.env.example만 커밋, 실제 .env.*는 Git 제외)
 ├── src/
