@@ -1,0 +1,10 @@
+.git
+**/node_modules
+**/dist
+**/target
+logs
+data
+docker
+tests
+.ai
+items

@@ -3,13 +3,14 @@
 set -eu
 
 fixture_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-module_dir=$(CDPATH= cd -- "$fixture_dir/.." && pwd)
-workspace_dir=$(CDPATH= cd -- "$module_dir/.." && pwd)
-java_home=/opt/homebrew/opt/openjdk@21
-jmeter_bin=/opt/homebrew/bin/jmeter
+module_dir=$(CDPATH= cd -- "$fixture_dir/../../../src/listener" && pwd)
+java_home=${JAVA_HOME:?Set JAVA_HOME to a Java 21 install}
+jmeter_bin=${JMETER_BIN:-$(command -v jmeter 2>/dev/null || true)}
 jar_path="$module_dir/target/jmeter-backend-listener-0.1.0-SNAPSHOT.jar"
-result_file="$fixture_dir/e2e-results.jtl"
-log_file="$fixture_dir/e2e-jmeter.log"
+log_dir="$fixture_dir/../../../logs/e2e/listener"
+mkdir -p "$log_dir"
+result_file="$log_dir/e2e-results.jtl"
+log_file="$log_dir/e2e-jmeter.log"
 
 test -x "$java_home/bin/java"
 test -x "$jmeter_bin"

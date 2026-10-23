@@ -8,17 +8,19 @@ set -eu
 
 mode=${1:-continue}
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-root=$(CDPATH= cd -- "$here/../.." && pwd)
+root=$(CDPATH= cd -- "$here/../../.." && pwd)
 jmeter_bin=${JMETER_BIN:-$(command -v jmeter 2>/dev/null || true)}
-listener_jar="$root/jmeter-backend-listener/target/jmeter-backend-listener-0.1.0-SNAPSHOT.jar"
+listener_jar="$root/src/listener/target/jmeter-backend-listener-0.1.0-SNAPSHOT.jar"
 collector=http://127.0.0.1:8765
-results="$here/btoc-like-results.jtl"
+log_dir="$root/logs/e2e/btoc-like"
+mkdir -p "$log_dir"
+results="$log_dir/btoc-like-results.jtl"
 users=${VIRTUAL_USERS:-3}
 answers=${ANSWER_COUNT:-5}
 
 test -x "$jmeter_bin" || { echo "Set JMETER_BIN to the jmeter executable." >&2; exit 64; }
-test -f "$listener_jar" || { echo "Build the listener first: (cd jmeter-backend-listener && mvn package)" >&2; exit 64; }
-curl --fail --silent "$collector/api/snapshot" >/dev/null || { echo "Start the collector first: python3 live-traffic-poc/server.py" >&2; exit 64; }
+test -f "$listener_jar" || { echo "Build the listener first: (cd src/listener && mvn package)" >&2; exit 64; }
+curl --fail --silent "$collector/api/snapshot" >/dev/null || { echo "Start the collector first: (cd docker && docker compose up -d)" >&2; exit 64; }
 
 case "$mode" in
   continue) on_error=continue ;;
@@ -33,7 +35,7 @@ sed -e "0,/<intProp name=\"ThreadGroup.num_threads\">3</s//<intProp name=\"Threa
     "$here/btoc-like.jmx" >"$plan"
 seq 1 "$answers" | sed 's/^/q/' >"$answers_csv"
 
-python3 "$here/server.py" >"$here/mock-api.log" 2>&1 &
+python3 "$here/server.py" >"$log_dir/mock-api.log" 2>&1 &
 mock_pid=$!
 cleanup() { kill "$mock_pid" 2>/dev/null || true; wait "$mock_pid" 2>/dev/null || true; rm -f "$plan" "$answers_csv"; }
 trap cleanup EXIT INT TERM
@@ -41,7 +43,7 @@ for _attempt in 1 2 3 4 5 6 7 8 9 10; do curl --fail --silent http://127.0.0.1:1
 
 rm -f "$results"
 "$jmeter_bin" -n -t "$plan" -Juser.classpath="$listener_jar" -JanswersCsv="$answers_csv" \
-  -l "$results" -j "$here/btoc-like-jmeter.log"
+  -l "$results" -j "$log_dir/btoc-like-jmeter.log"
 sleep 1
 
 curl --fail --silent "$collector/api/recording" | python3 -I -c '

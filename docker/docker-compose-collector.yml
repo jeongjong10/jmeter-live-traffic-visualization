@@ -1,0 +1,29 @@
+# JMeter 결과 수집·흐름 복원·실행 기록·화면 제공 (단일 진입점)
+services:
+    collector:
+        build:
+            context: ..
+            dockerfile: docker/collector/Dockerfile
+        image: jmeter-live-traffic-collector
+        container_name: jmeter-live-traffic-collector
+        hostname: jmeter-live-traffic-collector
+        restart: unless-stopped
+        env_file:
+            - ../items/${COMPOSE_ENV_FILES}
+        environment:
+            ENV_FILE: ${COMPOSE_ENV_FILES}
+            TZ: Asia/Seoul
+            # 컨테이너 안에서는 모든 인터페이스에 바인딩하고, 호스트 노출은 아래 ports에서 loopback으로 제한한다.
+            COLLECTOR_HOST: 0.0.0.0
+            COLLECTOR_PORT: "8765"
+        volumes:
+            # 소스는 마운트로 주입한다(컨테이너 재시작으로 반영). 화면은 이미지 빌드 단계에서 만든다.
+            - ../src/collector:/app/collector:ro
+            - ../logs/collector:/app/logs
+            - collector-data:/app/data
+        ports:
+            - "127.0.0.1:${COLLECTOR_PORT}:8765"
+
+volumes:
+    # 실행 기록(runs/)·등록 계획·부하 설정
+    collector-data:

@@ -3,24 +3,18 @@
 set -eu
 
 flow_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-workspace_dir=$(CDPATH= cd -- "$flow_dir/.." && pwd)
-# Let another machine supply its own installs. The Homebrew paths remain only
-# as a macOS convenience fallback for the original PoC environment.
+workspace_dir=$(CDPATH= cd -- "$flow_dir/../../.." && pwd)
 java_home=${JAVA_HOME:-}
-if test -z "$java_home" && test -x /opt/homebrew/opt/openjdk@21/bin/java; then
-  java_home=/opt/homebrew/opt/openjdk@21
-fi
 jmeter_bin=${JMETER_BIN:-}
 if test -z "$jmeter_bin"; then
   jmeter_bin=$(command -v jmeter 2>/dev/null || true)
 fi
-if test -z "$jmeter_bin" && test -x /opt/homebrew/bin/jmeter; then
-  jmeter_bin=/opt/homebrew/bin/jmeter
-fi
-listener_jar="$workspace_dir/jmeter-backend-listener/target/jmeter-backend-listener-0.1.0-SNAPSHOT.jar"
-results="$flow_dir/checkout-results.jtl"
-log_file="$flow_dir/checkout-jmeter.log"
-server_log="$flow_dir/mock-api.log"
+listener_jar="$workspace_dir/src/listener/target/jmeter-backend-listener-0.1.0-SNAPSHOT.jar"
+log_dir="$workspace_dir/logs/e2e/checkout-flow"
+mkdir -p "$log_dir"
+results="$log_dir/checkout-results.jtl"
+log_file="$log_dir/checkout-jmeter.log"
+server_log="$log_dir/mock-api.log"
 virtual_users=${VIRTUAL_USERS:-12}
 ramp_up_seconds=${RAMP_UP_SECONDS:-2}
 loops=${LOOPS:-2}
