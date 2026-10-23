@@ -65,3 +65,11 @@
     @apply bg-surface-600 rounded-full;
   }
 }
+
+/* User tokens waiting for a response pulse so they read as alive; a delayed token pulses faster and larger. */
+@keyframes jlt-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.16); } }
+@keyframes jlt-breathe-slow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.32); } }
+.jlt-breathe, .jlt-breathe-slow { transform-box: fill-box; transform-origin: center; }
+.jlt-breathe { animation: jlt-breathe 1.6s ease-in-out infinite; }
+.jlt-breathe-slow { animation: jlt-breathe-slow .8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .jlt-breathe, .jlt-breathe-slow { animation: none; } }

@@ -52,16 +52,16 @@ export default memo(function UserTimeline({ visits, stages, range, cursor, focus
     return { x, y, user, visit, time };
   };
   return <div id="jlt-user-timeline">
-    <div ref={host} className="relative max-h-[460px] overflow-y-auto rounded-lg border border-slate-800">
-      <canvas ref={canvas} style={{ width, height }} className="block cursor-pointer"
+    <div id="jlt-user-timeline-scroll" ref={host} className="relative max-h-[460px] overflow-y-auto rounded-lg border border-slate-800">
+      <canvas id="jlt-user-timeline-canvas" ref={canvas} style={{ width, height }} className="block cursor-pointer"
         onMouseMove={event => { const hit = hitTest(event.clientX, event.clientY); setHover(hit.visit ? { visit: hit.visit, x: hit.x, y: hit.y } : null); }}
         onMouseLeave={() => setHover(null)}
         onClick={event => { const hit = hitTest(event.clientX, event.clientY); if (hit.x < LABEL_W) onFocusRun(hit.user === focusRun ? null : hit.user); else if (hit.visit) onSelect(hit.visit); else onSeek(hit.time); }} />
-      {hover && <div className="pointer-events-none absolute z-10 rounded-lg border border-slate-600 bg-slate-950/95 px-3 py-2 text-xs" style={{ left: Math.min(hover.x + 12, width - 260), top: hover.y + 12 }}>
-        <p className="font-semibold text-slate-100">{stepName(hover.visit.stepId)}</p>
-        <p className="text-slate-300">{hover.visit.end === null || hover.visit.end > cursor ? '처리 중' : `${hover.visit.durationMs.toLocaleString()} ms · ${hover.visit.success ? '성공' : `오류 ${hover.visit.status}`}`}</p>
+      {hover && <div id="jlt-user-timeline-tooltip" className="pointer-events-none absolute z-10 rounded-lg border border-slate-600 bg-slate-950/95 px-3 py-2 text-xs" style={{ left: Math.min(hover.x + 12, width - 260), top: hover.y + 12 }}>
+        <p id="jlt-user-timeline-tooltip-step" className="font-semibold text-slate-100">{stepName(hover.visit.stepId)}</p>
+        <p id="jlt-user-timeline-tooltip-result" className="text-slate-300">{hover.visit.end === null || hover.visit.end > cursor ? '처리 중' : `${hover.visit.durationMs.toLocaleString()} ms · ${hover.visit.success ? '성공' : `오류 ${hover.visit.status}`}`}</p>
       </div>}
     </div>
-    <p className="mt-2 text-[11px] text-slate-500">가로축은 전체 기록 시간, 막대 하나가 요청 하나입니다. 주황은 선택한 단계, 빨강은 오류, 흐린 막대는 처리 중입니다. 사용자 이름을 클릭하면 여정 강조, 막대를 클릭하면 샘플 상세, 빈 곳을 클릭하면 그 시점으로 이동합니다.{users.length > MAX_USERS ? ` 사용자 ${users.length}명 중 처음 ${MAX_USERS}명만 표시합니다.` : ''}</p>
+    <p id="jlt-user-timeline-note" className="mt-2 text-[11px] text-slate-500">가로축은 전체 기록 시간, 막대 하나가 요청 하나입니다. 주황은 선택한 단계, 빨강은 오류, 흐린 막대는 처리 중입니다. 사용자 이름을 클릭하면 여정 강조, 막대를 클릭하면 샘플 상세, 빈 곳을 클릭하면 그 시점으로 이동합니다.{users.length > MAX_USERS ? ` 사용자 ${users.length}명 중 처음 ${MAX_USERS}명만 표시합니다.` : ''}</p>
   </div>;
 });
