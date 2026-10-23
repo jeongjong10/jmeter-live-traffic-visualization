@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src" / "collector"))
 
 from flow_tracker import FlowTracker  # noqa: E402
 from jmx_plan import parse_jmx, parse_test_tree  # noqa: E402
