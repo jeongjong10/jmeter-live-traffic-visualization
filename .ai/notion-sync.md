@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | 기획·결정 기록 | 📡 JMeter 실시간 부하 흐름 시각화 도구 기획서 | `3fb58ad3a0b28102bee4dfd8f0216481` |
 | 작업 상태·수용 기준·증거 | JMeter 실행 작업 큐 (기획서 하위 DB) | `collection://acd6e828-9a97-407d-b13b-f73abcd46ae4` |
+| 프로젝트 정의서 사본 | 프로젝트 정의서 (JMeter Live Traffic) (기획서 하위 페이지) — `.ai/spec/project.md`와 1:1 | `40158ad3a0b2812a8227e8eafb360550` |
 
 ## 작업 큐 속성
 
@@ -22,6 +23,9 @@
 | 문서 | 내용 |
 | --- | --- |
 | `README.md` | 실행 방법·범위·한계 |
-| `mock-api-flow/CONTRACT.md` | 이벤트 계약 |
-| `mock-api-flow/LOAD-SCALE-EVIDENCE.md` | 부하 확장 검증 결과 |
-| `netviz-visualizer/ATTRIBUTION.md` | NetViz 출처·라이선스 고지 |
+| `.ai/spec/project.md` | 프로젝트 정의서 (노션 사본과 1:1 유지) |
+| `.ai/spec/event-contract.md` | 이벤트 계약 |
+| `.ai/spec/load-scale-evidence.md` | 부하 확장 검증 결과 |
+| `src/web/ATTRIBUTION.md` | NetViz 출처·라이선스 고지 |
+| `.ai/spec/design-web-jmeter-runner.md` | 설계서: 웹에서 JMeter 실행 (TASK-19) |
+| `.ai/spec/design-jmeter-gui-plugin.md` | 설계서: JMeter 내장(GUI) 플러그인 (TASK-20) |

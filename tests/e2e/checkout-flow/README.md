@@ -1,6 +1,6 @@
 # 7단계 동시 커머스 흐름
 
-이 loopback 전용 fixture는 의도한 시각 모델을 보여줍니다. JMeter 가상 사용자들이 같은 비즈니스 프로세스에 함께 진입하고, API 응답이 돌아온 사용자만 다음 요청을 보낼 수 있습니다.
+이 loopback 전용 fixture는 7단계 모의 API를 JMeter로 호출해 화면과 collector 집계를 검증합니다. jmx에 Backend Listener가 있어 실행하면 화면이 이 데모 계획의 대시보드로 열립니다. JSR223 스크립트가 보내는 수명주기 이벤트(`started`·`skipped`)는 이전 계약(v4) 검증용입니다.
 
 ```text
 사용자 → 인증 → 세션/프로필 → 상품 검색 → 상품 상세 → 장바구니 → 결제 승인 → 주문 확정
@@ -22,12 +22,14 @@
 
 ## 실행 및 검증
 
-먼저 collector를 실행한 뒤 다음을 실행합니다.
+먼저 collector를 실행한 뒤(저장소 루트에서) 다음을 실행합니다.
 
 ```sh
-python3 live-traffic-poc/server.py
-./mock-api-flow/run-jmeter-flow.sh
+(cd docker && docker compose up -d)
+./tests/e2e/checkout-flow/run-jmeter-flow.sh
 ```
+
+실행 로그와 JTL은 `logs/e2e/checkout-flow/`에 남습니다.
 
 기본 스크립트는 정확히 156건의 실제 HTTP 샘플을 검증합니다: 상품 상세까지 각 24건, 장바구니/결제/주문 확정 각 20건, 그리고 상품 상세 HTTP 503 4건입니다. mock API는 `127.0.0.1:18081`에만 바인딩하며 실행이 끝나면 종료됩니다.
 
@@ -36,9 +38,9 @@ python3 live-traffic-poc/server.py
 스레드 수, ramp-up, 여정 반복 횟수는 안전한 JMeter 속성 오버라이드로 바꿀 수 있습니다. 각 실행은 JMeter 시작 전에 collector 기록을 초기화하고 그에 맞는 렌더러 설정을 발행합니다.
 
 ```sh
-VIRTUAL_USERS=24 RAMP_UP_SECONDS=4 LOOPS=2 ./mock-api-flow/run-jmeter-flow.sh
-VIRTUAL_USERS=48 RAMP_UP_SECONDS=8 LOOPS=2 ./mock-api-flow/run-jmeter-flow.sh
-VIRTUAL_USERS=120 RAMP_UP_SECONDS=20 LOOPS=2 ./mock-api-flow/run-jmeter-flow.sh
+VIRTUAL_USERS=24 RAMP_UP_SECONDS=4 LOOPS=2 ./tests/e2e/checkout-flow/run-jmeter-flow.sh
+VIRTUAL_USERS=48 RAMP_UP_SECONDS=8 LOOPS=2 ./tests/e2e/checkout-flow/run-jmeter-flow.sh
+VIRTUAL_USERS=120 RAMP_UP_SECONDS=20 LOOPS=2 ./tests/e2e/checkout-flow/run-jmeter-flow.sh
 ```
 
-2×, 4×, 10× 검증 결과는 [LOAD-SCALE-EVIDENCE.md](LOAD-SCALE-EVIDENCE.md)에 기록되어 있습니다.
+2×, 4×, 10× 검증 결과는 [load-scale-evidence.md](../../../.ai/spec/load-scale-evidence.md)에 기록되어 있습니다.

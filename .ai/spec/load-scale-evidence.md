@@ -40,7 +40,7 @@ collector를 실행한 뒤 아래 중 하나를 실행한다. 스크립트가 �
 load settings를 해당 설정으로 발행한다.
 
 ```sh
-VIRTUAL_USERS=24 RAMP_UP_SECONDS=4 LOOPS=2 ./mock-api-flow/run-jmeter-flow.sh
-VIRTUAL_USERS=48 RAMP_UP_SECONDS=8 LOOPS=2 ./mock-api-flow/run-jmeter-flow.sh
-VIRTUAL_USERS=120 RAMP_UP_SECONDS=20 LOOPS=2 ./mock-api-flow/run-jmeter-flow.sh
+VIRTUAL_USERS=24 RAMP_UP_SECONDS=4 LOOPS=2 ./tests/e2e/checkout-flow/run-jmeter-flow.sh
+VIRTUAL_USERS=48 RAMP_UP_SECONDS=8 LOOPS=2 ./tests/e2e/checkout-flow/run-jmeter-flow.sh
+VIRTUAL_USERS=120 RAMP_UP_SECONDS=20 LOOPS=2 ./tests/e2e/checkout-flow/run-jmeter-flow.sh
 ```

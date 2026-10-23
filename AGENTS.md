@@ -91,17 +91,38 @@
 
 ## 4. 디렉토리 구조
 
-단일 머신, loopback 전용 PoC다. Docker를 사용하지 않는다.
+단일 머신, loopback 전용 PoC다. 시스템은 `docker/`에서 `docker compose up` 하나로 기동한다.
 
 ```
 jmeter-live-traffic-visualization/
-├── .ai/                        # AI 협업 파일 (notion-sync.md, 세션 인수인계 파일)
-├── jmeter-backend-listener/    # 커스텀 JMeter Backend Listener (Java 21, Maven)
-├── live-traffic-poc/           # collector (Python, 127.0.0.1:8765, SSE /stream)
-├── mock-api-flow/              # 7단계 모의 API, JMeter 플랜, 실행 스크립트, 이벤트 계약
-├── netviz-visualizer/          # NetViz 기반 시각화 (React, TypeScript, Vite, 127.0.0.1:5174)
+├── .ai/                # AI 협업 파일 (notion-sync.md, 세션 인수인계 파일)
+│   └── spec/           # 명세 문서 (이벤트 계약, 검증 결과, 정의서·설계서)
+├── docker/             # Compose 진입점·서비스 정의·Dockerfile, 컨테이너 기동용 .env.* (커밋)
+├── items/              # 런타임 환경변수 (.env.example만 커밋, 실제 .env.*는 Git 제외)
+├── src/
+│   ├── listener/       # 커스텀 JMeter Backend Listener (Java 21, Maven, 테스트는 Maven 규약 위치)
+│   ├── collector/      # collector (Python, 127.0.0.1:8765, API·SSE·화면 제공)
+│   └── web/            # NetViz 기반 화면 (React, TypeScript, Vite)
+├── tests/
+│   ├── collector/      # collector 단위 테스트
+│   ├── web/            # 화면 계산 로직 테스트 (vitest, src/web에서 npm test로 실행)
+│   └── e2e/            # 모의 API·JMeter 플랜·실행 스크립트 (checkout-flow, btoc-like, listener)
+├── logs/               # collector 로그, E2E 실행 로그·JTL (Git 제외)
 └── README.md, AGENTS.md, CLAUDE.md, .gitignore
 ```
+
+- 애플리케이션 소스는 `src/` 하위에 컴포넌트별로 둔다.
+- Docker Compose는 `docker/`에서 실행한다. 최상위 `docker-compose.yml`은 진입점(include)만 두고, 서비스 정의는 `docker-compose-<서비스>.yml`, 이미지 파일은 `docker/<서비스>/`에 둔다.
+- 환경변수는 컨테이너 기동용(`docker/.env.*`: 포트 매핑·프로젝트명)과 런타임용(`items/.env.*`: 애플리케이션 동작 설정)으로 나누고, OS 환경변수 `COMPOSE_ENV_FILES`(예: `.env.dev`)로 선택한다. 런타임 키와 기본값은 `items/.env.example`에 기록한다.
+- 로그는 저장소 루트 `logs/`에, 실행 기록 같은 애플리케이션 데이터는 Docker 볼륨에 둔다.
+- 모듈 README는 해당 모듈 디렉토리에, 모듈 간 공용 문서(계약·검증 결과·설계서)는 `.ai/spec/`에 둔다.
+
+### 화면 요소 id 규칙 (`src/web`)
+
+- 화면을 구성하는 모든 HTML 요소에 고유 `id`를 붙인다. 사용자가 요소를 특정해 지시할 수 있게 하기 위함이다.
+- 접두어는 `jlt-`, 형식은 `jlt-<영역>-<부분>`(예: `jlt-node-<단계 id>-p95-value`, `jlt-chart-<그래프 id>-title`). 반복 요소는 단계 id·샘플 id·순번을 붙여 중복을 막는다.
+- SVG 내부 도형은 의미 단위(토큰, 간선, 히트맵 칸, 그래프 영역)에 id를 붙인다.
+- 화면을 바꾸면 브라우저에서 `#jlt-app` 아래 id 없는 HTML 요소와 중복 id가 0개인지 확인한다.
 
 ## 5. 문서 관리
 
@@ -169,8 +190,9 @@ Test: collector TASK-4 버킷 집계 단위 테스트
 #### 커밋 전 체크리스트
 
 - 변경한 모듈의 테스트·빌드 통과 확인
-  - `jmeter-backend-listener`: `mvn test package`
-  - `netviz-visualizer`: `npm run build`
+  - `src/listener`: `mvn test package`
+  - `src/collector`: `python3 -m unittest discover -s tests/collector`
+  - `src/web`: `npm test`, `npm run build`
 - 해당 작업의 노션 작업 큐 상태와 결과물·증거 갱신 확인
 
 ## 7. 도구 운용 규칙
