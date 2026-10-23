@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Loopback-only collector and dashboard for the JMeter visualization PoC."""
+"""Loopback-only collector for the JMeter visualization PoC."""
 from __future__ import annotations
 
 import json
+import logging
+import logging.handlers
+import mimetypes
+import os
 import queue
 import threading
 import time
@@ -16,8 +20,14 @@ from flow_tracker import FlowTracker
 from jmx_plan import parse_jmx, parse_test_tree
 from run_store import RunStore
 
-ROOT = Path(__file__).resolve().parent
-DATA = ROOT / "data"
+# Settings come from the environment; defaults are the container paths (docker/collector/Dockerfile).
+HOST = os.environ.get("COLLECTOR_HOST", "127.0.0.1")
+PORT = int(os.environ.get("COLLECTOR_PORT", "8765"))
+DATA = Path(os.environ.get("COLLECTOR_DATA_DIR") or "/app/data")
+# Built web screen (src/web: npm run build), served on the same port as the API.
+WEB_DIR = Path(os.environ.get("COLLECTOR_WEB_DIR") or "/app/web").resolve()
+LOG_DIR = Path(os.environ.get("COLLECTOR_LOG_DIR") or "/app/logs")
+LOG = logging.getLogger("collector")
 LOAD_SETTINGS_FILE = DATA / "load-settings.json"
 PLAN_FILE = DATA / "plan.json"
 EVENTS: list[dict] = []
@@ -27,7 +37,7 @@ LOCK = threading.Lock()
 # Serializes sample matching so one thread's samples are resolved in arrival order.
 TRACKER_LOCK = threading.Lock()
 TRACKER = FlowTracker()
-RUNS = RunStore(DATA / "runs", keep=5)
+RUNS = RunStore(DATA / "runs", keep=int(os.environ.get("COLLECTOR_RUN_KEEP", "5")))
 
 
 def now_ms() -> int:
@@ -118,7 +128,7 @@ def publish(events: list[dict]) -> None:
     """Record a batch and hand it to every live viewer as one SSE message."""
     if not events:
         return
-    DATA.mkdir(exist_ok=True)
+    DATA.mkdir(parents=True, exist_ok=True)
     with LOCK:
         EVENTS.extend(events)
         RUNS.append_many(events, TRACKER.plan)
@@ -231,7 +241,12 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt, *args):
-        print("[collector] " + fmt % args)
+        LOG.info(fmt % args)
+
+    def route(self) -> str:
+        """Request path; the web screen calls the API under /collector (same as the Vite dev proxy)."""
+        path = urlparse(self.path).path
+        return path[len("/collector"):] or "/" if path == "/collector" or path.startswith("/collector/") else path
 
     def send_json(self, value, status=200):
         data = json.dumps(value).encode()
@@ -243,7 +258,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_POST(self):
-        path = urlparse(self.path).path
+        path = self.route()
         if path == "/api/load-settings":
             try:
                 length = int(self.headers.get("Content-Length", "0"))
@@ -254,7 +269,7 @@ class Handler(BaseHTTPRequestHandler):
                 global LOAD_SETTINGS
                 with LOCK:
                     LOAD_SETTINGS = value
-                    DATA.mkdir(exist_ok=True)
+                    DATA.mkdir(parents=True, exist_ok=True)
                     LOAD_SETTINGS_FILE.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
                 self.send_json({"accepted": True, "loadSettings": value}, HTTPStatus.ACCEPTED)
             except (ValueError, json.JSONDecodeError) as exc:
@@ -272,7 +287,7 @@ class Handler(BaseHTTPRequestHandler):
                 plan = parse_test_tree(self.rfile.read(length))
                 with TRACKER_LOCK:
                     TRACKER.set_plan(plan)
-                    DATA.mkdir(exist_ok=True)
+                    DATA.mkdir(parents=True, exist_ok=True)
                     PLAN_FILE.write_text(json.dumps(plan, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
                     reset_recording()
                 self.send_json({"accepted": True, "threadGroups": len(plan["threadGroups"])}, HTTPStatus.ACCEPTED)
@@ -285,7 +300,7 @@ class Handler(BaseHTTPRequestHandler):
                 plan = parse_jmx(self.rfile.read(length))
                 with TRACKER_LOCK:
                     TRACKER.set_plan(plan)
-                    DATA.mkdir(exist_ok=True)
+                    DATA.mkdir(parents=True, exist_ok=True)
                     PLAN_FILE.write_text(json.dumps(plan, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
                     # The live view belongs to the new plan; earlier runs keep their own plan.
                     reset_recording()
@@ -309,7 +324,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 
     def do_DELETE(self):
-        if urlparse(self.path).path != "/api/plan":
+        if self.route() != "/api/plan":
             self.send_error(404); return
         with TRACKER_LOCK:
             TRACKER.set_plan(None)
@@ -317,7 +332,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json({"plan": None})
 
     def do_GET(self):
-        path = urlparse(self.path).path
+        path = self.route()
         if path == "/api/snapshot":
             self.send_json(snapshot()); return
         if path == "/api/plan":
@@ -337,18 +352,19 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(body); return
         if path == "/stream":
             self.stream(); return
-        if path in ("/", "/index.html"):
-            self.static("index.html", "text/html; charset=utf-8"); return
-        if path == "/app.js":
-            self.static("app.js", "application/javascript; charset=utf-8"); return
-        if path == "/style.css":
-            self.static("style.css", "text/css; charset=utf-8"); return
-        self.send_error(404)
+        self.web(path)
 
-    def static(self, name, content_type):
-        data = (ROOT / name).read_bytes()
-        self.send_response(200); self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data)
+    def web(self, path):
+        if not (WEB_DIR / "index.html").exists():
+            self.send_error(503, "Web screen not built: run 'npm run build' in src/web"); return
+        target = (WEB_DIR / path.lstrip("/")).resolve() if path != "/" else WEB_DIR / "index.html"
+        if not target.is_relative_to(WEB_DIR) or not target.is_file():
+            self.send_error(404); return
+        data = target.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", mimetypes.guess_type(target.name)[0] or "application/octet-stream")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers(); self.wfile.write(data)
 
     def stream(self):
         subscriber = Subscriber(); q = subscriber.queue
@@ -375,8 +391,19 @@ class Handler(BaseHTTPRequestHandler):
                 if subscriber in SUBSCRIBERS: SUBSCRIBERS.remove(subscriber)
 
 
+def setup_logging() -> None:
+    """Log to stdout (docker logs) and to a rotating file under LOG_DIR (logs/collector on the host)."""
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    file_handler = logging.handlers.RotatingFileHandler(LOG_DIR / "collector.log", maxBytes=10_000_000, backupCount=5, encoding="utf-8")
+    for handler in (logging.StreamHandler(), file_handler):
+        handler.setFormatter(formatter); LOG.addHandler(handler)
+    LOG.setLevel(logging.INFO)
+
+
 if __name__ == "__main__":
-    DATA.mkdir(exist_ok=True)
+    setup_logging()
+    DATA.mkdir(parents=True, exist_ok=True)
     EVENTS.extend(RUNS.resume_latest())
     if LOAD_SETTINGS_FILE.exists():
         try: LOAD_SETTINGS.update(json.loads(LOAD_SETTINGS_FILE.read_text(encoding="utf-8")))
@@ -384,6 +411,6 @@ if __name__ == "__main__":
     if PLAN_FILE.exists():
         try: TRACKER.set_plan(json.loads(PLAN_FILE.read_text(encoding="utf-8")))
         except json.JSONDecodeError: pass
-    server = ThreadingHTTPServer(("127.0.0.1", 8765), Handler)
-    print("Dashboard: http://127.0.0.1:8765  (loopback only)")
+    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    LOG.info("Collector: http://%s:%s  (data: %s, web: %s)", HOST, PORT, DATA, WEB_DIR)
     server.serve_forever()
