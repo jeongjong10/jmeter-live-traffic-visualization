@@ -43,6 +43,30 @@ def jmx(on_error="continue", loops="1"):
 </hashTree></hashTree></jmeterTestPlan>"""
 
 
+def jmx_nested_loops():
+    """btoc shape: a per-examinee ForEach around a two-step answer loop."""
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan><hashTree>
+<TestPlan testclass="TestPlan" testname="plan"/><hashTree>
+<ThreadGroup testclass="ThreadGroup" testname="Journey TG">
+  <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+  <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
+    <stringProp name="LoopController.loops">1</stringProp></elementProp>
+</ThreadGroup><hashTree>
+  {sampler("login")}
+  <ForeachController testclass="ForeachController" testname="examinees"/><hashTree>
+    {sampler("confirm")}
+    <LoopController testclass="LoopController" testname="answers"><intProp name="LoopController.loops">3</intProp></LoopController><hashTree>
+      {sampler("question")}
+      {sampler("answer")}
+    </hashTree>
+    {sampler("result")}
+  </hashTree>
+  {sampler("delete")}
+</hashTree>
+</hashTree></hashTree></jmeterTestPlan>"""
+
+
 def sample(label, start, elapsed=100, success=True, thread="Journey TG 1-1"):
     return {"threadName": thread, "label": label, "startTime": start, "timestamp": start + elapsed,
             "elapsed": elapsed, "success": success, "responseCode": "200" if success else "500"}
@@ -60,6 +84,11 @@ class JmxPlanTest(unittest.TestCase):
         self.assertEqual((False, None, None, True, False), (group["scheduler"], group["durationSeconds"], group["startDelaySeconds"],
                                                             group["sameUserOnNextIteration"], group["delayedStart"]))
         self.assertEqual([], plan["warnings"])
+
+    def test_records_enclosing_loops_outermost_first(self):
+        group = parse_jmx(jmx_nested_loops())["threadGroups"][0]
+        self.assertEqual([[], ["l1"], ["l1", "l2"], ["l1", "l2"], ["l1"], []], [s["loopScopes"] for s in group["steps"]])
+        self.assertEqual([False, True, True, True, True, False], [s["repeat"] for s in group["steps"]])
 
     def test_reads_scheduler_and_thread_lifecycle_settings(self):
         source = jmx().replace('<stringProp name="ThreadGroup.on_sample_error">',
@@ -124,6 +153,25 @@ class FlowTrackerTest(unittest.TestCase):
         events = self.run_samples([sample("login", 0), sample("report", 100), sample("login", 200)], loops="2")
         done = [e for e in events if e["phase"] == "completed"]
         self.assertEqual(["Journey TG 1-1#1", "Journey TG 1-1#1", "Journey TG 1-1#2"], [e["correlationId"] for e in done])
+
+    def test_a_multi_step_loop_body_stays_in_the_same_iteration(self):
+        self.tracker.set_plan(parse_jmx(jmx_nested_loops()))
+        labels = ["login", "confirm", "question", "answer", "question", "answer", "result",
+                  "confirm", "question", "answer", "result", "delete"]
+        events = [e for i, label in enumerate(labels) for e in self.tracker.sample(sample(label, i * 100))]
+        done = [e for e in events if e["phase"] == "completed"]
+        self.assertEqual(["tg1-s1", "tg1-s2", "tg1-s3", "tg1-s4", "tg1-s3", "tg1-s4", "tg1-s5",
+                          "tg1-s2", "tg1-s3", "tg1-s4", "tg1-s5", "tg1-s6"], [e["stepId"] for e in done])
+        self.assertEqual({"Journey TG 1-1#1"}, {e["correlationId"] for e in events})
+
+    def test_the_last_step_of_a_loop_estimates_the_loop_start(self):
+        self.tracker.set_plan(parse_jmx(jmx_nested_loops()))
+        events = [e for i, label in enumerate(["login", "confirm", "question", "answer", "result"])
+                  for e in self.tracker.sample(sample(label, i * 100))]
+        started = [e["stepId"] for e in events if e["phase"] == "started"]
+        cancelled = [e["stepId"] for e in events if e["phase"] == "cancelled"]
+        self.assertEqual(["tg1-s2", "tg1-s3", "tg1-s4", "tg1-s3", "tg1-s2"], started)
+        self.assertEqual(["tg1-s3"], cancelled)
 
     def test_test_end_cancels_open_estimates(self):
         self.run_samples([sample("login", 0)])
