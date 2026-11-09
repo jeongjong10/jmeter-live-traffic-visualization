@@ -2,11 +2,13 @@
 
 Only enabled elements are kept. Each sampler becomes one step in tree order, so
 two samplers with the same label stay two distinct steps. Samplers inside a
-loop are marked ``repeat``. Elements outside the supported set are reported as
+loop are marked ``repeat`` and list their enclosing loops, outermost first, in
+``loopScopes`` so a multi-step loop body can be followed back to its start. Elements outside the supported set are reported as
 warnings instead of being guessed at.
 """
 from __future__ import annotations
 
+import itertools
 import json
 import xml.etree.ElementTree as ET
 
@@ -77,24 +79,25 @@ def _thread_group(element: ET.Element) -> dict:
     }
 
 
-def _sampler_step(element: ET.Element, repeat: bool) -> dict:
+def _sampler_step(element: ET.Element, scopes: tuple[str, ...]) -> dict:
     props = _props(element)
     return {
         "label": element.get("testname", ""),
         "method": props.get("HTTPSampler.method", "") if element.tag == "HTTPSamplerProxy" else "",
         "path": props.get("HTTPSampler.path", "") if element.tag == "HTTPSamplerProxy" else "",
         "sampler": element.tag,
-        "repeat": repeat,
+        "repeat": bool(scopes),
+        "loopScopes": list(scopes),
     }
 
 
-def _collect(hash_tree: ET.Element, group: dict, repeat: bool, warnings: list[str]) -> None:
+def _collect(hash_tree: ET.Element, group: dict, scopes: tuple[str, ...], warnings: list[str], loop_ids) -> None:
     for element, subtree in _pairs(hash_tree):
         if not _enabled(element):
             continue
         tag = element.tag
         if tag.endswith("Sampler") or tag.endswith("SamplerProxy"):
-            group["steps"].append(_sampler_step(element, repeat))
+            group["steps"].append(_sampler_step(element, scopes))
             if tag != "HTTPSamplerProxy":
                 warnings.append(f"{group['name']}: HTTP가 아닌 Sampler '{element.get('testname')}'({tag})는 단계로만 표시합니다.")
             if "${" in element.get("testname", ""):
@@ -102,19 +105,20 @@ def _collect(hash_tree: ET.Element, group: dict, repeat: bool, warnings: list[st
             continue
         if tag in LOOP_CONTROLLERS:
             loops = _number(_props(element).get("LoopController.loops"))
-            nested_repeat = repeat or tag != "LoopController" or loops is None or loops != 1
+            repeats = tag != "LoopController" or loops is None or loops != 1
+            nested = scopes + (f"l{next(loop_ids)}",) if repeats else scopes
             if subtree is not None:
-                _collect(subtree, group, nested_repeat, warnings)
+                _collect(subtree, group, nested, warnings, loop_ids)
             continue
         if tag in TRANSPARENT_CONTROLLERS:
             if subtree is not None:
-                _collect(subtree, group, repeat, warnings)
+                _collect(subtree, group, scopes, warnings, loop_ids)
             continue
         if tag in NON_SAMPLE_TAGS:
             continue
         warnings.append(f"{group['name']}: 지원하지 않는 요소 '{element.get('testname')}'({tag})는 순서대로 펼쳐 표시합니다.")
         if subtree is not None:
-            _collect(subtree, group, repeat, warnings)
+            _collect(subtree, group, scopes, warnings, loop_ids)
 
 
 def parse_jmx(data: bytes | str) -> dict:
@@ -137,7 +141,7 @@ def parse_jmx(data: bytes | str) -> dict:
                 continue
             group = _thread_group(element)
             if subtree is not None:
-                _collect(subtree, group, False, warnings)
+                _collect(subtree, group, (), warnings, itertools.count(1))
             if not group["steps"]:
                 continue
             group["id"] = f"tg{len(groups) + 1}"

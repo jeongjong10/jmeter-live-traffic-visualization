@@ -3,7 +3,10 @@
 A JMeter thread sends its samplers one after another, so when one sample
 completes the next step of the same thread has just started. The tracker
 matches each sample to a plan step by label, searching forward from the
-thread's last step (this separates duplicate labels by position), then emits:
+thread's last step (this separates duplicate labels by position). When nothing
+ahead matches, it searches the loops around the last step, innermost first, from
+each loop's first step, so a multi-step loop body stays in the same iteration.
+Only a label found in neither starts the next iteration. It then emits:
 
 - ``completed``/``aborted`` for the measured sample (real start and elapsed), and
 - ``started`` with ``estimated: true`` for the step it expects next.
@@ -109,13 +112,22 @@ class FlowTracker:
         for index in range(start, len(steps)):
             if steps[index]["label"] == label:
                 return index
+        if position < 0:
+            return None
+        for scope in reversed(steps[position].get("loopScopes", [])):
+            for index in range(position + 1):
+                if scope in steps[index].get("loopScopes", []) and steps[index]["label"] == label:
+                    return index
         return None
 
     @staticmethod
     def _next(group: dict, state: dict, index: int) -> tuple[int, int] | None:
         steps = group["steps"]
-        if steps[index]["repeat"]:
-            return index, state["iteration"]
+        scopes = steps[index].get("loopScopes", [])
+        if scopes and not (index + 1 < len(steps) and scopes[-1] in steps[index + 1].get("loopScopes", [])):
+            # Last step of its innermost loop: the loop's first step runs next unless the loop ends.
+            first = next(i for i, step in enumerate(steps) if scopes[-1] in step.get("loopScopes", []))
+            return first, state["iteration"]
         if index + 1 < len(steps):
             return index + 1, state["iteration"]
         loops = group.get("loops")
